@@ -1,0 +1,56 @@
+# Development overrides for docker-compose
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  user_service:
+    build:
+      context: .
+      dockerfile: services/user_service/Dockerfile
+    volumes:
+      - ./services/user_service/app:/app/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    environment:
+      - DEBUG=true
+
+  product_service:
+    volumes:
+      - ./services/product_service/app:/app/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    environment:
+      - DEBUG=true
+
+  cart_service:
+    volumes:
+      - ./services/cart_service/app:/app/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+    environment:
+      - DEBUG=true
+
+  order_service:
+    volumes:
+      - ./services/order_service/app:/app/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload
+    environment:
+      - DEBUG=true
+
+  payment_service:
+    volumes:
+      - ./services/payment_service/app:/app/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
+    environment:
+      - DEBUG=true
+
+  notification_service:
+    volumes:
+      - ./services/notification_service/app:/app/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8006 --reload
+    environment:
+      - DEBUG=true

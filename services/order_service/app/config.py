@@ -1,0 +1,39 @@
+"""Order Service Configuration"""
+
+import sys
+from pathlib import Path
+from functools import lru_cache
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from pydantic import Field
+from shared.config import BaseSettings, DatabaseSettings
+
+
+class Settings(BaseSettings, DatabaseSettings):
+    """Order Service specific settings."""
+    
+    app_name: str = "Order Service"
+    
+    db_host: str = Field(default="localhost", alias="ORDER_DB_HOST")
+    db_port: int = Field(default=5432, alias="ORDER_DB_PORT")
+    db_name: str = Field(default="order_service", alias="ORDER_DB_NAME")
+    db_user: str = Field(default="ecommerce", alias="ORDER_DB_USER")
+    db_password: str = Field(default="ecommerce_secret", alias="ORDER_DB_PASSWORD")
+    
+    # Other services
+    cart_service_url: str = Field(default="http://cart_service:8003", alias="CART_SERVICE_URL")
+    product_service_url: str = Field(default="http://product_service:8002", alias="PRODUCT_SERVICE_URL")
+    payment_service_url: str = Field(default="http://payment_service:8005", alias="PAYMENT_SERVICE_URL")
+    
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
