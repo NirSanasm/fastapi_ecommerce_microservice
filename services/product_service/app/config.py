@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from pydantic import Field
 from shared.config import BaseSettings, DatabaseSettings
-
+BASE_DIR = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings, DatabaseSettings):
     """Product Service specific settings."""
@@ -22,7 +22,7 @@ class Settings(BaseSettings, DatabaseSettings):
     db_password: str = Field(default="ecommerce_secret", alias="PRODUCT_DB_PASSWORD")
     
     class Config:
-        env_file = ".env"
+        env_file = BASE_DIR/".env"
         extra = "ignore"
 
 

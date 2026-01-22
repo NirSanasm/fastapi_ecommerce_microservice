@@ -58,6 +58,20 @@ class ProductService:
             select(Product).where(Product.sku == sku)
         )
         return result.scalar_one_or_none()
+
+
+    async def get_with_relations(self, product_id: int):
+        stmt = (
+                select(Product)
+                .options(
+                    selectinload(Product.category),
+                    selectinload(Product.images),
+                )
+                .where(Product.id == product_id)
+            )
+        result = await self.db.execute(stmt)
+        return result.scalar_one()
+
     
     async def get_all(
         self,
