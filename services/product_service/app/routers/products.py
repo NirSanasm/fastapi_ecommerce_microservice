@@ -31,17 +31,6 @@ router = APIRouter()
 
 from sqlalchemy.orm import selectinload
 
-async def get_with_relations(self, product_id: int):
-    stmt = (
-        select(Product)
-        .options(
-            selectinload(Product.category),
-            selectinload(Product.images),
-        )
-        .where(Product.id == product_id)
-    )
-    result = await self.db.execute(stmt)
-    return result.scalar_one()
 
 
 @router.get("/", response_model=ResponseModel[List[ProductListResponse]])
