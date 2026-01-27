@@ -1,11 +1,11 @@
 """
-Email Service - SendGrid Integration
-
-TODO: Implement SendGrid email sending.
+Email Service - Brevo (Sendinblue) Integration
 """
 
 from typing import Optional, Dict, Any
 import uuid
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 
 from app.schemas.notification import NotificationResponse, NotificationType
 from app.config import settings
@@ -13,16 +13,18 @@ from app.config import settings
 
 class EmailService:
     """
-    Email service for sending emails via SendGrid.
-    
-    TODO: Integrate with SendGrid SDK
-    TODO: Add email templates
-    TODO: Add rate limiting
+    Email service for sending emails via Brevo (Sendinblue).
     """
     
     def __init__(self):
-        self.api_key = settings.sendgrid_api_key
-        self.from_email = settings.sendgrid_from_email
+        # Configure Brevo API
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = settings.brevo_api_key
+        self.api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+            sib_api_v3_sdk.ApiClient(configuration)
+        )
+        self.from_email = settings.brevo_from_email
+        self.from_name = settings.brevo_from_name
     
     async def send_email(
         self,
@@ -35,42 +37,43 @@ class EmailService:
         body_text: Optional[str] = None,
     ) -> NotificationResponse:
         """
-        Send an email.
-        
-        TODO: Integrate with SendGrid
-        
-        Example with SendGrid:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail
-        
-        message = Mail(
-            from_email=self.from_email,
-            to_emails=to_email,
-            subject=subject,
-            html_content=body_html,
-        )
-        sg = SendGridAPIClient(self.api_key)
-        response = sg.send(message)
+        Send an email via Brevo.
         """
-        
         # Get HTML content
         if template_name:
             body_html = self._render_template(template_name, template_data or {})
         
-        # Mock sending email
         notification_id = str(uuid.uuid4())
         
-        print(f"[EMAIL] Sending to: {to_email}")
-        print(f"[EMAIL] Subject: {subject}")
-        print(f"[EMAIL] Body: {body_html[:100] if body_html else body_text[:100]}...")
-        
-        return NotificationResponse(
-            success=True,
-            notification_id=notification_id,
-            channel="email",
-            recipient=to_email,
-            message=f"Email sent to {to_email}",
+        # Build email
+        send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+            sender={"email": self.from_email, "name": self.from_name},
+            to=[{"email": to_email, "name": to_name or to_email}],
+            subject=subject,
+            html_content=body_html,
+            text_content=body_text,
         )
+        
+        try:
+            # Send email via Brevo API
+            response = self.api_instance.send_transac_email(send_smtp_email)
+            
+            return NotificationResponse(
+                success=True,
+                notification_id=response.message_id or notification_id,
+                channel="email",
+                recipient=to_email,
+                message=f"Email sent to {to_email}",
+            )
+        except ApiException as e:
+            print(f"[EMAIL ERROR] Brevo API error: {e}")
+            return NotificationResponse(
+                success=False,
+                notification_id=notification_id,
+                channel="email",
+                recipient=to_email,
+                message=f"Failed to send email: {str(e)}",
+            )
     
     async def send_order_notification(
         self,
@@ -114,11 +117,7 @@ class EmailService:
         )
     
     def _render_template(self, template_name: str, data: Dict[str, Any]) -> str:
-        """
-        Render email template with data.
-        
-        TODO: Implement proper template rendering (Jinja2)
-        """
+        """Render email template with data."""
         templates = {
             "order_confirmation": f"""
                 <h1>Thank you for your order!</h1>

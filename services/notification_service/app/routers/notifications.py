@@ -1,17 +1,15 @@
 """
-Notifications Router - Notification sending endpoints
+Notifications Router - Email notification endpoints
 """
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.notification import (
     EmailNotification,
-    SMSNotification,
     NotificationResponse,
     OrderNotification,
 )
 from app.services.email_service import EmailService
-from app.services.sms_service import SMSService
 
 import sys
 from pathlib import Path
@@ -54,34 +52,10 @@ async def send_email(notification: EmailNotification):
         )
 
 
-@router.post("/sms", response_model=ResponseModel[NotificationResponse])
-async def send_sms(notification: SMSNotification):
-    """
-    Send an SMS notification.
-    """
-    sms_service = SMSService()
-    
-    try:
-        result = await sms_service.send_sms(
-            to_phone=notification.to_phone,
-            message=notification.message,
-        )
-        return ResponseModel(
-            success=True,
-            message="SMS sent successfully",
-            data=result,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send SMS: {str(e)}",
-        )
-
-
 @router.post("/order", response_model=ResponseModel[NotificationResponse])
 async def send_order_notification(notification: OrderNotification):
     """
-    Send order-related notification (email and optionally SMS).
+    Send order-related email notification.
     
     Automatically selects the appropriate template based on notification type.
     """

@@ -9,21 +9,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from pydantic import Field
 from shared.config import BaseSettings
 
+BASE_DIR = Path(__file__).resolve().parents[3]
+
 
 class Settings(BaseSettings):
     app_name: str = "Notification Service"
     
-    # SendGrid
-    sendgrid_api_key: str = Field(default="", alias="SENDGRID_API_KEY")
-    sendgrid_from_email: str = Field(default="noreply@example.com", alias="SENDGRID_FROM_EMAIL")
-    
-    # Twilio
-    twilio_account_sid: str = Field(default="", alias="TWILIO_ACCOUNT_SID")
-    twilio_auth_token: str = Field(default="", alias="TWILIO_AUTH_TOKEN")
-    twilio_from_phone: str = Field(default="", alias="TWILIO_FROM_PHONE")
+    # Brevo (formerly Sendinblue)
+    brevo_api_key: str = Field(default="", alias="BREVO_API_KEY")
+    brevo_from_email: str = Field(default="noreply@example.com", alias="BREVO_FROM_EMAIL")
+    brevo_from_name: str = Field(default="E-Commerce Platform", alias="BREVO_FROM_NAME")
     
     class Config:
-        env_file = ".env"
+        env_file = BASE_DIR / ".env"
         extra = "ignore"
 
 
