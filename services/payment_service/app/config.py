@@ -1,4 +1,9 @@
-"""Payment Service Configuration"""
+"""Payment Service Configuration
+
+Environment variables are loaded in order of priority:
+1. OS environment variables (from Docker, Kubernetes, or shell)
+2. .env file (for local development)
+"""
 
 import sys
 from pathlib import Path
@@ -9,9 +14,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from pydantic import Field
 from shared.config import BaseSettings, DatabaseSettings
 
-BASE_DIR = Path(__file__).resolve().parents[3]
 
 class Settings(BaseSettings, DatabaseSettings):
+    """Payment Service specific settings."""
+    
     app_name: str = "Payment Service"
     
     db_host: str = Field(default="localhost", alias="PAYMENT_DB_HOST")
@@ -32,8 +38,10 @@ class Settings(BaseSettings, DatabaseSettings):
     order_service_url: str = Field(default="http://order_service:8004", alias="ORDER_SERVICE_URL")
     
     class Config:
-        env_file = BASE_DIR / ".env"
+        env_file = ".env"
+        env_file_encoding = "utf-8"
         extra = "ignore"
+        populate_by_name = True
 
 
 @lru_cache

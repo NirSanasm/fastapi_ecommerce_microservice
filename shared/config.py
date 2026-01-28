@@ -61,16 +61,18 @@ class DatabaseSettings(PydanticBaseSettings):
     db_name: str = Field(default="ecommerce", description="Database name")
     db_user: str = Field(default="postgres", description="Database user")
     db_password: str = Field(default="postgres", description="Database password")
+    db_ssl_mode: str = Field(default="require", description="SSL mode for database connection (require, disable, etc.)")
     
     @property
     def database_url(self) -> str:
-        """Get async database URL for SQLAlchemy."""
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        """Get async database URL for SQLAlchemy with SSL support."""
+        # For cloud databases like Neon, SSL is required
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}?ssl={self.db_ssl_mode}"
     
     @property
     def sync_database_url(self) -> str:
         """Get sync database URL for Alembic migrations."""
-        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        return f"postgresql://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}?sslmode={self.db_ssl_mode}"
     
     class Config:
         env_file = ".env"

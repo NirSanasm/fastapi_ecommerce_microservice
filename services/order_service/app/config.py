@@ -1,4 +1,9 @@
-"""Order Service Configuration"""
+"""Order Service Configuration
+
+Environment variables are loaded in order of priority:
+1. OS environment variables (from Docker, Kubernetes, or shell)
+2. .env file (for local development)
+"""
 
 import sys
 from pathlib import Path
@@ -28,7 +33,9 @@ class Settings(BaseSettings, DatabaseSettings):
     
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         extra = "ignore"
+        populate_by_name = True
 
 
 @lru_cache
