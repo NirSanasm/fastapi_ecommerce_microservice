@@ -34,10 +34,10 @@ class BaseSettings(PydanticBaseSettings):
     )
     
     # RabbitMQ Configuration
-    rabbitmq_host: str = Field(default="localhost", description="RabbitMQ host")
-    rabbitmq_port: int = Field(default=5672, description="RabbitMQ port")
-    rabbitmq_user: str = Field(default="guest", description="RabbitMQ username")
-    rabbitmq_password: str = Field(default="guest", description="RabbitMQ password")
+    rabbitmq_host: str = Field(default="rabbitmq", alias="RABBITMQ_HOST", description="RabbitMQ host")
+    rabbitmq_port: int = Field(default=5672, alias="RABBITMQ_PORT", description="RabbitMQ port")
+    rabbitmq_user: str = Field(default="ecommerce", alias="RABBITMQ_USER", description="RabbitMQ username")
+    rabbitmq_password: str = Field(default="ecommerce_secret", alias="RABBITMQ_PASSWORD", description="RabbitMQ password")
     
     @property
     def rabbitmq_url(self) -> str:

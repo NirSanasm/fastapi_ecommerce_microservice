@@ -26,10 +26,20 @@ class Settings(BaseSettings, DatabaseSettings):
     db_user: str = Field(default="ecommerce", alias="ORDER_DB_USER")
     db_password: str = Field(default="ecommerce_secret", alias="ORDER_DB_PASSWORD")
     
+    # JWT settings
+    jwt_secret_key: str = Field(
+        default="your-super-secret-jwt-key-change-in-production",
+        alias="JWT_SECRET_KEY"
+    )
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    
     # Other services
     cart_service_url: str = Field(default="http://cart_service:8003", alias="CART_SERVICE_URL")
     product_service_url: str = Field(default="http://product_service:8002", alias="PRODUCT_SERVICE_URL")
     payment_service_url: str = Field(default="http://payment_service:8005", alias="PAYMENT_SERVICE_URL")
+    notification_service_url: str = Field(default="http://notification_service:8006", alias="NOTIFICATION_SERVICE_URL")
+    
+    # Note: RabbitMQ URL is provided by BaseSettings.rabbitmq_url property
     
     class Config:
         env_file = ".env"

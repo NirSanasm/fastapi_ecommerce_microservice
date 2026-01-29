@@ -26,6 +26,12 @@ class Settings(BaseSettings, DatabaseSettings):
     db_user: str = Field(default="ecommerce", alias="PRODUCT_DB_USER")
     db_password: str = Field(default="ecommerce_secret", alias="PRODUCT_DB_PASSWORD")
     
+    # RabbitMQ for event publishing
+    rabbitmq_url: str = Field(default="amqp://ecommerce:ecommerce_secret@rabbitmq:5672/", alias="RABBITMQ_URL")
+    
+    # Inventory thresholds
+    low_stock_threshold: int = Field(default=10, alias="LOW_STOCK_THRESHOLD")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

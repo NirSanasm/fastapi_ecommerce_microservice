@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     brevo_from_email: str = Field(default="noreply@example.com", alias="BREVO_FROM_EMAIL")
     brevo_from_name: str = Field(default="E-Commerce Platform", alias="BREVO_FROM_NAME")
     
+    # RabbitMQ for event consumption
+    rabbitmq_url: str = Field(default="amqp://ecommerce:ecommerce_secret@rabbitmq:5672/", alias="RABBITMQ_URL")
+    
+    # User service for fetching user details
+    user_service_url: str = Field(default="http://user_service:8001", alias="USER_SERVICE_URL")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

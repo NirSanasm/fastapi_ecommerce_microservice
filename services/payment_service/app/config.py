@@ -37,6 +37,9 @@ class Settings(BaseSettings, DatabaseSettings):
     # Order service
     order_service_url: str = Field(default="http://order_service:8004", alias="ORDER_SERVICE_URL")
     
+    # RabbitMQ for event publishing
+    rabbitmq_url: str = Field(default="amqp://ecommerce:ecommerce_secret@rabbitmq:5672/", alias="RABBITMQ_URL")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

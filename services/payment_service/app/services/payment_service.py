@@ -10,12 +10,12 @@ from decimal import Decimal
 import json
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
 import stripe
 
 from app.models.payment import Payment, PaymentStatus
 from app.schemas.payment import PaymentCreate, PaymentIntentResponse, RefundResponse
 from app.config import settings
+from app.events import event_publisher
 
 # Initialize Stripe
 stripe.api_key = settings.stripe_secret_key
@@ -121,8 +121,14 @@ class PaymentService:
         await self.db.flush()
         await self.db.refresh(payment)
         
-        # Notify order service
-        await self._notify_order_service(payment.order_id, payment.id, "completed")
+        # Publish payment.completed event
+        await event_publisher.publish_payment_completed(
+            payment_id=payment.id,
+            order_id=payment.order_id,
+            user_id=payment.user_id,
+            amount=payment.amount,
+            stripe_payment_id=stripe_payment_intent_id,
+        )
         
         return payment
     
@@ -170,8 +176,13 @@ class PaymentService:
         await self.db.flush()
         await self.db.refresh(payment)
         
-        # Notify order service
-        await self._notify_order_service(payment.order_id, payment.id, "failed")
+        # Publish payment.failed event
+        await event_publisher.publish_payment_failed(
+            payment_id=payment.id,
+            order_id=payment.order_id,
+            user_id=payment.user_id,
+            error_message=error_message,
+        )
         
         return payment
     
@@ -215,6 +226,14 @@ class PaymentService:
             payment.refunded_at = datetime.utcnow()
             
             await self.db.flush()
+            
+            # Publish payment.refunded event
+            await event_publisher.publish_payment_refunded(
+                payment_id=payment.id,
+                order_id=payment.order_id,
+                user_id=payment.user_id,
+                amount=refund_amount,
+            )
             
             return RefundResponse(
                 payment_id=payment.id,
@@ -261,21 +280,3 @@ class PaymentService:
             raise ValueError("Invalid webhook signature")
         except json.JSONDecodeError:
             raise ValueError("Invalid JSON payload")
-    
-    async def _notify_order_service(self, order_id: int, payment_id: int, status: str):
-        """Notify order service about payment status."""
-        try:
-            async with httpx.AsyncClient() as client:
-                if status == "completed":
-                    await client.post(
-                        f"{settings.order_service_url}/api/v1/orders/{order_id}/payment-success",
-                        json={"payment_id": payment_id},
-                    )
-                elif status == "failed":
-                    await client.post(
-                        f"{settings.order_service_url}/api/v1/orders/{order_id}/payment-failed",
-                        json={"payment_id": payment_id},
-                    )
-        except Exception as e:
-            print(f"Error notifying order service: {e}")
-            # TODO: Implement retry or message queue

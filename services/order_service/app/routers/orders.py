@@ -3,10 +3,13 @@ Orders Router - Order management endpoints
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+import jwt
 
 from app.database import get_db
+from app.config import settings
 from app.schemas.order import (
     OrderCreate,
     OrderUpdate,
@@ -23,30 +26,71 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
 from shared.schemas import ResponseModel, PaginationParams
+from shared.auth import verify_token, TokenData
 
 
 router = APIRouter()
+security = HTTPBearer()
 
 
-def get_user_id(authorization: Optional[str] = Header(None)) -> int:
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> TokenData:
     """
-    Extract user ID from authorization header.
+    Extract and validate user from JWT token.
     
-    TODO: Implement proper JWT validation
+    Returns:
+        TokenData with user_id and roles
     """
-    if authorization:
-        # TODO: Decode JWT and extract user ID
-        return 123  # Placeholder
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Authentication required",
-    )
+    try:
+        token_data = verify_token(
+            credentials.credentials,
+            settings.jwt_secret_key,
+            settings.jwt_algorithm,
+            verify_type="access",
+        )
+        return token_data
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+async def require_admin(
+    current_user: TokenData = Depends(get_current_user),
+) -> TokenData:
+    """
+    Require admin role for access.
+    
+    Raises:
+        HTTPException: If user doesn't have admin role
+    """
+    if "admin" not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
 
 
 @router.post("/", response_model=ResponseModel[OrderResponse], status_code=status.HTTP_201_CREATED)
 async def create_order(
     order_data: OrderCreate,
-    authorization: Optional[str] = Header(None),
+    current_user: TokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -56,7 +100,7 @@ async def create_order(
     - Validates stock availability
     - Creates payment intent
     """
-    user_id = get_user_id(authorization)
+    user_id = int(current_user.user_id)
     order_service = OrderService(db)
     
     try:
@@ -77,13 +121,13 @@ async def create_order(
 async def list_orders(
     pagination: PaginationParams = Depends(),
     status_filter: Optional[OrderStatus] = None,
-    authorization: Optional[str] = Header(None),
+    current_user: TokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     List user's orders with optional filtering.
     """
-    user_id = get_user_id(authorization)
+    user_id = int(current_user.user_id)
     order_service = OrderService(db)
     
     orders = await order_service.get_user_orders(
@@ -103,13 +147,13 @@ async def list_orders(
 @router.get("/{order_id}", response_model=ResponseModel[OrderResponse])
 async def get_order(
     order_id: int,
-    authorization: Optional[str] = Header(None),
+    current_user: TokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get order details by ID.
     """
-    user_id = get_user_id(authorization)
+    user_id = int(current_user.user_id)
     order_service = OrderService(db)
     
     order = await order_service.get_order(order_id, user_id)
@@ -126,13 +170,13 @@ async def get_order(
 @router.get("/number/{order_number}", response_model=ResponseModel[OrderResponse])
 async def get_order_by_number(
     order_number: str,
-    authorization: Optional[str] = Header(None),
+    current_user: TokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get order details by order number.
     """
-    user_id = get_user_id(authorization)
+    user_id = int(current_user.user_id)
     order_service = OrderService(db)
     
     order = await order_service.get_by_order_number(order_number, user_id)
@@ -149,13 +193,13 @@ async def get_order_by_number(
 @router.post("/{order_id}/cancel", response_model=ResponseModel[OrderResponse])
 async def cancel_order(
     order_id: int,
-    authorization: Optional[str] = Header(None),
+    current_user: TokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Cancel an order (only if pending/confirmed).
     """
-    user_id = get_user_id(authorization)
+    user_id = int(current_user.user_id)
     order_service = OrderService(db)
     
     try:
@@ -178,12 +222,11 @@ async def cancel_order(
 async def update_order_status(
     order_id: int,
     status_data: OrderStatusUpdate,
+    admin_user: TokenData = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Update order status (admin only).
-    
-    TODO: Add admin authentication
     """
     order_service = OrderService(db)
     
@@ -206,12 +249,11 @@ async def update_order_status(
 async def add_tracking(
     order_id: int,
     tracking_data: TrackingUpdate,
+    admin_user: TokenData = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Add tracking information to order (admin only).
-    
-    TODO: Add admin authentication
     """
     order_service = OrderService(db)
     
@@ -238,12 +280,11 @@ async def add_tracking(
 async def list_all_orders(
     pagination: PaginationParams = Depends(),
     status_filter: Optional[OrderStatus] = None,
+    admin_user: TokenData = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     List all orders (admin only).
-    
-    TODO: Add admin authentication
     """
     order_service = OrderService(db)
     

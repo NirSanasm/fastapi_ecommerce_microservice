@@ -3,20 +3,34 @@ Notification Service - Main Application Entry Point
 Sends email and SMS notifications for various events.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import notifications
+from app.events import event_consumer
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(f"Starting {settings.app_name}...")
-    # TODO: Start RabbitMQ consumer for event-driven notifications
+    
+    # Start RabbitMQ consumer as background task
+    consumer_task = asyncio.create_task(event_consumer.start())
+    print("RabbitMQ event consumer started")
+    
     yield
+    
+    # Shutdown
     print(f"Shutting down {settings.app_name}...")
+    await event_consumer.stop()
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(

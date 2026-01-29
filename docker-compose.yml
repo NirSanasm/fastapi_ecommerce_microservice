@@ -11,6 +11,24 @@ version: '3.8'
 # =============================================================================
 
 services:
+  # ============ Message Broker ============
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=ecommerce
+      - RABBITMQ_DEFAULT_PASS=ecommerce_secret
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # ============ API Gateway ============
   gateway:
     build:
@@ -25,6 +43,7 @@ services:
       - order_service
       - payment_service
       - notification_service
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -47,6 +66,9 @@ services:
       - ORDER_SERVICE_URL=http://order_service:8004
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
+      - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -66,6 +88,9 @@ services:
       - ORDER_SERVICE_URL=http://order_service:8004
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
+      - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -85,6 +110,9 @@ services:
       - ORDER_SERVICE_URL=http://order_service:8004
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
+      - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -104,6 +132,9 @@ services:
       - ORDER_SERVICE_URL=http://order_service:8004
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
+      - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -123,6 +154,9 @@ services:
       - ORDER_SERVICE_URL=http://order_service:8004
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
+      - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -142,6 +176,9 @@ services:
       - ORDER_SERVICE_URL=http://order_service:8004
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
+      - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
     networks:
       - ecommerce-network
     restart: unless-stopped

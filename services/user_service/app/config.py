@@ -29,6 +29,9 @@ class Settings(BaseSettings, DatabaseSettings):
     db_name: str = Field(default="user_service", alias="USER_DB_NAME")
     db_user: str = Field(default="ecommerce", alias="USER_DB_USER")
     db_password: str = Field(default="ecommerce_secret", alias="USER_DB_PASSWORD")
+    
+    # RabbitMQ for event publishing
+    rabbitmq_url: str = Field(default="amqp://ecommerce:ecommerce_secret@rabbitmq:5672/", alias="RABBITMQ_URL")
 
     model_config = SettingsConfigDict(
         env_file=".env",

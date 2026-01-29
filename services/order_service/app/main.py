@@ -3,6 +3,7 @@ Order Service - Main Application Entry Point
 Processes orders, tracks status, and manages order history.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import db_manager
 from app.routers import orders
+from app.consumers import payment_consumer
 
 
 @asynccontextmanager
@@ -17,8 +19,21 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     print(f"Starting {settings.app_name}...")
     await db_manager.create_tables()
+    
+    # Start payment event consumer as background task
+    consumer_task = asyncio.create_task(payment_consumer.start())
+    print("Payment event consumer started")
+    
     yield
+    
+    # Shutdown
     print(f"Shutting down {settings.app_name}...")
+    await payment_consumer.stop()
+    consumer_task.cancel()
+    try:
+        await consumer_task
+    except asyncio.CancelledError:
+        pass
     await db_manager.close()
 
 
