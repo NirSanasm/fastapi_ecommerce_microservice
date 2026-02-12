@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Premium e-commerce platform with a wide range of products. Shop electronics, fashion, and more.">
+    <title>ShopVerse — Premium E-Commerce</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <!-- ===== NAVBAR ===== -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="#/" class="nav-logo">
+                <span class="logo-icon">◆</span> ShopVerse
+            </a>
+            <div class="nav-links">
+                <a href="#/" class="nav-link" data-page="home">Home</a>
+                <a href="#/products" class="nav-link" data-page="products">Products</a>
+                <a href="#/cart" class="nav-link cart-link" data-page="cart">
+                    Cart
+                    <span class="cart-badge" id="cart-badge" style="display:none;">0</span>
+                </a>
+                <a href="#/orders" class="nav-link" data-page="orders" id="nav-orders" style="display:none;">Orders</a>
+            </div>
+            <div class="nav-actions">
+                <div id="nav-guest">
+                    <a href="#/login" class="btn btn-outline btn-sm">Login</a>
+                    <a href="#/register" class="btn btn-primary btn-sm">Sign Up</a>
+                </div>
+                <div id="nav-user" style="display:none;">
+                    <a href="#/profile" class="nav-user-btn" id="nav-user-name">
+                        <span class="avatar-sm" id="nav-avatar">U</span>
+                        <span id="nav-username">User</span>
+                    </a>
+                    <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
+                </div>
+            </div>
+            <button class="nav-mobile-toggle" id="mobile-toggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main id="app" class="main-content"></main>
+
+    <!-- ===== TOAST CONTAINER ===== -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- ===== PAGE TEMPLATES ===== -->
+
+    <!-- HOME -->
+    <template id="tmpl-home">
+        <section class="hero">
+            <div class="hero-bg"></div>
+            <div class="hero-content">
+                <span class="hero-badge">✦ New Collection 2026</span>
+                <h1 class="hero-title">Discover <span class="gradient-text">Premium</span> Products</h1>
+                <p class="hero-subtitle">Shop the latest trends with unbeatable quality and style. From electronics to fashion — we've got you covered.</p>
+                <div class="hero-actions">
+                    <a href="#/products" class="btn btn-primary btn-lg">Browse Products</a>
+                    <a href="#/products?featured=true" class="btn btn-glass btn-lg">Featured Items</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat"><span class="stat-number">500+</span><span class="stat-label">Products</span></div>
+                    <div class="stat"><span class="stat-number">10K+</span><span class="stat-label">Customers</span></div>
+                    <div class="stat"><span class="stat-number">99%</span><span class="stat-label">Satisfaction</span></div>
+                </div>
+            </div>
+        </section>
+        <section class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Featured Products</h2>
+                    <a href="#/products?featured=true" class="section-link">View All →</a>
+                </div>
+                <div class="product-grid" id="featured-products">
+                    <div class="loading-skeleton"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
+                </div>
+            </div>
+        </section>
+        <section class="section section-alt">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Shop by Category</h2>
+                </div>
+                <div class="category-grid" id="home-categories">
+                    <div class="loading-skeleton"><div class="skeleton-card skeleton-sm"></div><div class="skeleton-card skeleton-sm"></div><div class="skeleton-card skeleton-sm"></div></div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <!-- PRODUCTS -->
+    <template id="tmpl-products">
+        <section class="section page-section">
+            <div class="container">
+                <h1 class="page-title">Products</h1>
+                <div class="products-layout">
+                    <aside class="filter-sidebar" id="filter-sidebar">
+                        <div class="filter-group">
+                            <h3 class="filter-title">Category</h3>
+                            <select class="form-select" id="filter-category">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <h3 class="filter-title">Price Range</h3>
+                            <div class="filter-row">
+                                <input type="number" class="form-input form-input-sm" id="filter-min-price" placeholder="Min">
+                                <span class="filter-sep">—</span>
+                                <input type="number" class="form-input form-input-sm" id="filter-max-price" placeholder="Max">
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="filter-in-stock"> In Stock Only
+                            </label>
+                        </div>
+                        <div class="filter-group">
+                            <h3 class="filter-title">Sort By</h3>
+                            <select class="form-select" id="filter-sort">
+                                <option value="created_at:desc">Newest</option>
+                                <option value="price:asc">Price: Low → High</option>
+                                <option value="price:desc">Price: High → Low</option>
+                                <option value="name:asc">Name: A → Z</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-block" id="btn-apply-filters">Apply Filters</button>
+                    </aside>
+                    <div class="products-main">
+                        <div class="products-toolbar">
+                            <div class="search-box">
+                                <input type="text" class="form-input" id="search-input" placeholder="Search products...">
+                                <button class="search-btn" id="btn-search">⌕</button>
+                            </div>
+                        </div>
+                        <div class="product-grid" id="product-list">
+                            <div class="loading-skeleton"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
+                        </div>
+                        <div class="pagination" id="pagination"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <!-- PRODUCT DETAIL -->
+    <template id="tmpl-product-detail">
+        <section class="section page-section">
+            <div class="container">
+                <a href="#/products" class="back-link">← Back to Products</a>
+                <div class="product-detail" id="product-detail">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <!-- CART -->
+    <template id="tmpl-cart">
+        <section class="section page-section">
+            <div class="container">
+                <h1 class="page-title">Shopping Cart</h1>
+                <div id="cart-content">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <!-- CHECKOUT -->
+    <template id="tmpl-checkout">
+        <section class="section page-section">
+            <div class="container container-sm">
+                <h1 class="page-title">Checkout</h1>
+                <form id="checkout-form" class="checkout-layout">
+                    <div class="card">
+                        <h2 class="card-title">Shipping Address</h2>
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label class="form-label">Street Address</label>
+                                <input type="text" class="form-input" name="street" required placeholder="123 Main St">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">City</label>
+                                <input type="text" class="form-input" name="city" required placeholder="New York">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">State</label>
+                                <input type="text" class="form-input" name="state" required placeholder="NY">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Postal Code</label>
+                                <input type="text" class="form-input" name="postal_code" required placeholder="10001">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Country</label>
+                                <input type="text" class="form-input" name="country" required value="US" placeholder="US">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:1rem;">
+                            <label class="form-label">Order Notes (optional)</label>
+                            <textarea class="form-input" name="notes" rows="2" placeholder="Special instructions..."></textarea>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2 class="card-title">Order Summary</h2>
+                        <div id="checkout-summary">
+                            <div class="loading-spinner"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-place-order" style="margin-top:1.5rem;">
+                            Place Order
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </template>
+
+    <!-- ORDERS -->
+    <template id="tmpl-orders">
+        <section class="section page-section">
+            <div class="container">
+                <h1 class="page-title">My Orders</h1>
+                <div id="orders-list">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <!-- LOGIN -->
+    <template id="tmpl-login">
+        <section class="auth-section">
+            <div class="auth-card card">
+                <h1 class="auth-title">Welcome Back</h1>
+                <p class="auth-subtitle">Sign in to your account</p>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" name="email" required placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" name="password" required placeholder="••••••••">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-login">Sign In</button>
+                </form>
+                <p class="auth-footer">Don't have an account? <a href="#/register">Create one</a></p>
+            </div>
+        </section>
+    </template>
+
+    <!-- REGISTER -->
+    <template id="tmpl-register">
+        <section class="auth-section">
+            <div class="auth-card card">
+                <h1 class="auth-title">Create Account</h1>
+                <p class="auth-subtitle">Join ShopVerse today</p>
+                <form id="register-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">First Name</label>
+                            <input type="text" class="form-input" name="first_name" required placeholder="John">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Last Name</label>
+                            <input type="text" class="form-input" name="last_name" required placeholder="Doe">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" name="email" required placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-input" name="phone" placeholder="+1234567890">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" name="password" required minlength="8" placeholder="Min 8 characters">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-register">Create Account</button>
+                </form>
+                <p class="auth-footer">Already have an account? <a href="#/login">Sign in</a></p>
+            </div>
+        </section>
+    </template>
+
+    <!-- PROFILE -->
+    <template id="tmpl-profile">
+        <section class="section page-section">
+            <div class="container container-sm">
+                <h1 class="page-title">My Profile</h1>
+                <div id="profile-content">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <script src="/app.js"></script>
+</body>
+</html>
