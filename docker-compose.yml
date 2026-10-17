@@ -3,47 +3,96 @@ version: '3.8'
 # =============================================================================
 # E-Commerce Platform Docker Compose
 # =============================================================================
-# This configuration uses CLOUD SERVICES from .env:
-# - PostgreSQL: Neon (cloud) 
-# - Redis: Redis Cloud
-# - Email: Brevo
-# - Payments: Stripe
+# Services included:
+# - Infrastructure: Local PostgreSQL, Local Redis, RabbitMQ
+# - API Gateway: NGINX (Reverse proxy + Frontend SPA)
+# - Microservices: User, Product, Cart, Order, Payment, Notification
 # =============================================================================
 
 services:
-  # ============ Message Broker ============
-  rabbitmq:
-    image: rabbitmq:3-management
+  # ============ Database (Local PostgreSQL) ============
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecommerce-postgres
     ports:
-      - "5672:5672" # AMQP
-      - "15672:15672" # Management UI
+      - "5432:5432"
     environment:
-      - RABBITMQ_DEFAULT_USER=ecommerce
-      - RABBITMQ_DEFAULT_PASS=ecommerce_secret
+      - POSTGRES_USER=ecommerce
+      - POSTGRES_PASSWORD=ecommerce_secret
+      - POSTGRES_DB=ecommerce
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     networks:
       - ecommerce-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
-      interval: 30s
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============ In-Memory Store (Local Redis) ============
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ============ Message Broker (RabbitMQ) ============
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: ecommerce-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=ecommerce
+      - RABBITMQ_DEFAULT_PASS=ecommerce_secret
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
       timeout: 10s
       retries: 5
 
-  # ============ API Gateway ============
+  # ============ API Gateway & Frontend ============
   gateway:
     build:
       context: .
       dockerfile: gateway/Dockerfile
+    container_name: ecommerce-gateway
     ports:
       - "80:80"
     depends_on:
-      - user_service
-      - product_service
-      - cart_service
-      - order_service
-      - payment_service
-      - notification_service
-      - rabbitmq
+      user_service:
+        condition: service_started
+      product_service:
+        condition: service_started
+      cart_service:
+        condition: service_started
+      order_service:
+        condition: service_started
+      payment_service:
+        condition: service_started
+      notification_service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -54,12 +103,12 @@ services:
     build:
       context: .
       dockerfile: services/user_service/Dockerfile
+    container_name: ecommerce-user-service
     ports:
       - "8001:8001"
     env_file:
       - .env
     environment:
-      # Override service URLs for Docker network
       - USER_SERVICE_URL=http://user_service:8001
       - PRODUCT_SERVICE_URL=http://product_service:8002
       - CART_SERVICE_URL=http://cart_service:8003
@@ -67,8 +116,17 @@ services:
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
       - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+      - USER_DB_HOST=postgres
+      - USER_DB_PORT=5432
+      - USER_DB_NAME=user_service
+      - USER_DB_USER=ecommerce
+      - USER_DB_PASSWORD=ecommerce_secret
+      - DB_SSL_MODE=disable
     depends_on:
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -77,6 +135,7 @@ services:
     build:
       context: .
       dockerfile: services/product_service/Dockerfile
+    container_name: ecommerce-product-service
     ports:
       - "8002:8002"
     env_file:
@@ -89,8 +148,17 @@ services:
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
       - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+      - PRODUCT_DB_HOST=postgres
+      - PRODUCT_DB_PORT=5432
+      - PRODUCT_DB_NAME=product_service
+      - PRODUCT_DB_USER=ecommerce
+      - PRODUCT_DB_PASSWORD=ecommerce_secret
+      - DB_SSL_MODE=disable
     depends_on:
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -99,6 +167,7 @@ services:
     build:
       context: .
       dockerfile: services/cart_service/Dockerfile
+    container_name: ecommerce-cart-service
     ports:
       - "8003:8003"
     env_file:
@@ -111,8 +180,14 @@ services:
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
       - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
     depends_on:
-      - rabbitmq
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -121,6 +196,7 @@ services:
     build:
       context: .
       dockerfile: services/order_service/Dockerfile
+    container_name: ecommerce-order-service
     ports:
       - "8004:8004"
     env_file:
@@ -133,8 +209,17 @@ services:
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
       - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+      - ORDER_DB_HOST=postgres
+      - ORDER_DB_PORT=5432
+      - ORDER_DB_NAME=order_service
+      - ORDER_DB_USER=ecommerce
+      - ORDER_DB_PASSWORD=ecommerce_secret
+      - DB_SSL_MODE=disable
     depends_on:
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -143,6 +228,7 @@ services:
     build:
       context: .
       dockerfile: services/payment_service/Dockerfile
+    container_name: ecommerce-payment-service
     ports:
       - "8005:8005"
     env_file:
@@ -155,8 +241,17 @@ services:
       - PAYMENT_SERVICE_URL=http://payment_service:8005
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
       - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
+      - PAYMENT_DB_HOST=postgres
+      - PAYMENT_DB_PORT=5432
+      - PAYMENT_DB_NAME=payment_service
+      - PAYMENT_DB_USER=ecommerce
+      - PAYMENT_DB_PASSWORD=ecommerce_secret
+      - DB_SSL_MODE=disable
     depends_on:
-      - rabbitmq
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -165,6 +260,7 @@ services:
     build:
       context: .
       dockerfile: services/notification_service/Dockerfile
+    container_name: ecommerce-notification-service
     ports:
       - "8006:8006"
     env_file:
@@ -178,7 +274,8 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification_service:8006
       - RABBITMQ_URL=amqp://ecommerce:ecommerce_secret@rabbitmq:5672/
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     networks:
       - ecommerce-network
     restart: unless-stopped
@@ -186,3 +283,8 @@ services:
 networks:
   ecommerce-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
