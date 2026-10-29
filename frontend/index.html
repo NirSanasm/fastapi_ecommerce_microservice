@@ -182,9 +182,21 @@
                     <div class="card">
                         <h2 class="card-title">Shipping Address</h2>
                         <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-input" name="first_name" required placeholder="Jane">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-input" name="last_name" required placeholder="Doe">
+                            </div>
                             <div class="form-group full-width">
-                                <label class="form-label">Street Address</label>
-                                <input type="text" class="form-input" name="street" required placeholder="123 Main St">
+                                <label class="form-label">Street Address (Address Line 1)</label>
+                                <input type="text" class="form-input" name="address_line1" required placeholder="123 Main St">
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">Apartment, suite, unit (Address Line 2)</label>
+                                <input type="text" class="form-input" name="address_line2" placeholder="Apt 4B (optional)">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">City</label>
@@ -202,10 +214,21 @@
                                 <label class="form-label">Country</label>
                                 <input type="text" class="form-input" name="country" required value="US" placeholder="US">
                             </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">Phone (optional)</label>
+                                <input type="tel" class="form-input" name="phone" placeholder="+1234567890">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top:1rem;">
+                            <label class="form-label">Payment Method</label>
+                            <select class="form-input" name="payment_method">
+                                <option value="stripe" selected>Credit Card (Stripe)</option>
+                                <option value="cash_on_delivery">Cash on Delivery</option>
+                            </select>
                         </div>
                         <div class="form-group" style="margin-top:1rem;">
                             <label class="form-label">Order Notes (optional)</label>
-                            <textarea class="form-input" name="notes" rows="2" placeholder="Special instructions..."></textarea>
+                            <textarea class="form-input" name="customer_notes" rows="2" placeholder="Special delivery instructions..."></textarea>
                         </div>
                     </div>
                     <div class="card">

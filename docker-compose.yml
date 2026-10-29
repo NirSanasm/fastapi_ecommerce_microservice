@@ -93,6 +93,8 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
     networks:
       - ecommerce-network
     restart: unless-stopped

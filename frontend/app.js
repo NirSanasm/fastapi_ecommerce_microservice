@@ -507,17 +507,44 @@ async function removeCartItem(productId) {
 
 // ===== PAGE: CHECKOUT =====
 async function initCheckout() {
-    // Load cart summary
+    if (!api.getToken()) {
+        toast('Please login to checkout', 'error');
+        navigate('/login');
+        return;
+    }
+
+    const user = api.getUser() || {};
+    const formEl = document.getElementById('checkout-form');
+    if (formEl) {
+        if (formEl.first_name && user.first_name) formEl.first_name.value = user.first_name;
+        if (formEl.last_name && user.last_name) formEl.last_name.value = user.last_name;
+        if (formEl.phone && user.phone) formEl.phone.value = user.phone;
+    }
+
+    // Load cart summary and items
+    let cartItems = [];
     try {
-        const res = await api.get(`${API.cart}/summary`);
-        const summary = res.data || res;
+        const [summaryRes, cartRes] = await Promise.allSettled([
+            api.get(`${API.cart}/summary`),
+            api.get(`${API.cart}/`),
+        ]);
+
+        const summary = summaryRes.status === 'fulfilled' ? (summaryRes.value.data || summaryRes.value) : null;
+        const cart = cartRes.status === 'fulfilled' ? (cartRes.value.data || cartRes.value) : null;
+
+        if (cart && Array.isArray(cart.items)) {
+            cartItems = cart.items;
+        }
+
         const summaryEl = document.getElementById('checkout-summary');
-        summaryEl.innerHTML = `
-            <div class="summary-row"><span>Subtotal</span><span>$${num(summary.subtotal)}</span></div>
-            <div class="summary-row"><span>Tax</span><span>$${num(summary.tax)}</span></div>
-            <div class="summary-row"><span>Shipping</span><span>$${num(summary.shipping)}</span></div>
-            <div class="summary-row total"><span>Total</span><span>$${num(summary.total)}</span></div>
-        `;
+        if (summary) {
+            summaryEl.innerHTML = `
+                <div class="summary-row"><span>Subtotal</span><span>$${num(summary.subtotal)}</span></div>
+                <div class="summary-row"><span>Tax</span><span>$${num(summary.tax)}</span></div>
+                <div class="summary-row"><span>Shipping</span><span>$${num(summary.shipping)}</span></div>
+                <div class="summary-row total"><span>Total</span><span>$${num(summary.total)}</span></div>
+            `;
+        }
     } catch (err) {
         document.getElementById('checkout-summary').innerHTML = `<p style="color:var(--text-muted);">${esc(err.message)}</p>`;
     }
@@ -530,23 +557,47 @@ async function initCheckout() {
         btn.textContent = 'Placing Order...';
 
         const form = e.target;
-        const shipping = {
-            street: form.street.value,
-            city: form.city.value,
-            state: form.state.value,
-            postal_code: form.postal_code.value,
-            country: form.country.value,
+        const firstName = form.first_name?.value?.trim() || user.first_name || 'Customer';
+        const lastName = form.last_name?.value?.trim() || user.last_name || 'User';
+        const addressLine1 = form.address_line1?.value?.trim() || form.street?.value?.trim() || '';
+        const addressLine2 = form.address_line2?.value?.trim() || null;
+        const phone = form.phone?.value?.trim() || user.phone || null;
+
+        const shippingAddress = {
+            first_name: firstName,
+            last_name: lastName,
+            address_line1: addressLine1,
+            address_line2: addressLine2 || null,
+            city: form.city.value.trim(),
+            state: form.state.value.trim(),
+            postal_code: form.postal_code.value.trim(),
+            country: form.country?.value?.trim() || 'US',
+            phone: phone || null,
         };
 
+        const orderPayload = {
+            shipping_address: shippingAddress,
+            billing_address: shippingAddress,
+            payment_method: form.payment_method?.value || 'stripe',
+            customer_notes: form.customer_notes?.value?.trim() || form.notes?.value?.trim() || null,
+        };
+
+        if (cartItems && cartItems.length > 0) {
+            orderPayload.items = cartItems.map(item => ({
+                product_id: Number(item.product_id),
+                product_name: String(item.product_name || `Product ${item.product_id}`),
+                product_sku: String(item.product_sku || `SKU-${item.product_id}`),
+                unit_price: parseFloat(item.unit_price ?? item.price ?? 0),
+                quantity: Number(item.quantity || 1),
+            }));
+        }
+
         try {
-            const res = await api.post(`${API.orders}/`, {
-                shipping_address: shipping,
-                billing_address: shipping, // same for simplicity
-                notes: form.notes.value || '',
-            });
+            const res = await api.post(`${API.orders}/`, orderPayload);
             const order = res.data || res;
             toast(`Order #${order.order_number || order.id} placed!`, 'success');
             updateCartBadge(0);
+            try { await api.del(`${API.cart}/`); } catch {}
             navigate('/orders');
         } catch (err) {
             toast(err.message, 'error');
