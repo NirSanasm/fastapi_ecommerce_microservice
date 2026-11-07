@@ -399,9 +399,9 @@ class OrderService:
     async def _get_cart_items(self, user_id: int) -> List[OrderItemCreate]:
         """Fetch cart items from cart service."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 response = await client.get(
-                    f"{settings.cart_service_url}/api/v1/cart",
+                    f"{settings.cart_service_url}/api/v1/cart/",
                     headers={"Authorization": f"Bearer user_{user_id}"},
                 )
                 if response.status_code == 200:
@@ -424,9 +424,9 @@ class OrderService:
     async def _clear_cart(self, user_id: int) -> bool:
         """Clear user's cart after order creation."""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 response = await client.delete(
-                    f"{settings.cart_service_url}/api/v1/cart",
+                    f"{settings.cart_service_url}/api/v1/cart/",
                     headers={"Authorization": f"Bearer user_{user_id}"},
                 )
                 if response.status_code == 200:

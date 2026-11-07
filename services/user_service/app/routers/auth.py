@@ -5,6 +5,7 @@ Authentication Router - Login, Register, Token Refresh
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.schemas.user import (
@@ -60,7 +61,13 @@ async def register(
         )
     
     # Create user
-    user = await user_service.create_user(user_data)
+    try:
+        user = await user_service.create_user(user_data)
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
     
     # TODO: Send verification email
     # await send_verification_email(user.email, verification_token)
