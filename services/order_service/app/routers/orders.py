@@ -117,7 +117,7 @@ async def create_order(
         )
 
 
-@router.get("/", response_model=ResponseModel[List[OrderListResponse]])
+@router.get("/")
 async def list_orders(
     pagination: PaginationParams = Depends(),
     status_filter: Optional[OrderStatus] = None,
@@ -136,12 +136,7 @@ async def list_orders(
         limit=pagination.limit,
         status=status_filter,
     )
-    
-    return ResponseModel(
-        success=True,
-        message=f"Retrieved {len(orders)} orders",
-        data=orders,
-    )
+    return orders
 
 
 @router.get("/{order_id}", response_model=ResponseModel[OrderResponse])

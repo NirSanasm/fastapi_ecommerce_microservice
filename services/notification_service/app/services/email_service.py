@@ -3,12 +3,16 @@ Email Service - Brevo (Sendinblue) Integration
 """
 
 from typing import Optional, Dict, Any
+import email.utils
+import logging
 import uuid
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
 from app.schemas.notification import NotificationResponse, NotificationType
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService:
@@ -23,8 +27,16 @@ class EmailService:
         self.api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
             sib_api_v3_sdk.ApiClient(configuration)
         )
-        self.from_email = settings.brevo_from_email
-        self.from_name = settings.brevo_from_name
+        # Parse from_email in case it is in "Name <email@example.com>" format
+        parsed_name, parsed_email = email.utils.parseaddr(settings.brevo_from_email)
+        self.from_email = parsed_email if parsed_email else settings.brevo_from_email.strip()
+        
+        # Clean from_name
+        from_name = settings.brevo_from_name or parsed_name or "E-Commerce Platform"
+        if "<" in from_name and ">" in from_name:
+            n, _ = email.utils.parseaddr(from_name)
+            from_name = n or from_name.split("<")[0].strip()
+        self.from_name = from_name.strip()
     
     async def send_email(
         self,
@@ -57,7 +69,7 @@ class EmailService:
         try:
             # Send email via Brevo API
             response = self.api_instance.send_transac_email(send_smtp_email)
-            
+            logger.info(f"Email sent successfully to {to_email} (message_id: {response.message_id or notification_id})")
             return NotificationResponse(
                 success=True,
                 notification_id=response.message_id or notification_id,
@@ -66,7 +78,16 @@ class EmailService:
                 message=f"Email sent to {to_email}",
             )
         except ApiException as e:
-            print(f"[EMAIL ERROR] Brevo API error: {e}")
+            logger.error(f"[EMAIL ERROR] Brevo API error sending to {to_email}: {e}")
+            return NotificationResponse(
+                success=False,
+                notification_id=notification_id,
+                channel="email",
+                recipient=to_email,
+                message=f"Failed to send email: {str(e)}",
+            )
+        except Exception as e:
+            logger.error(f"[EMAIL ERROR] Unexpected error sending email to {to_email}: {e}")
             return NotificationResponse(
                 success=False,
                 notification_id=notification_id,

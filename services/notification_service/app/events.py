@@ -123,6 +123,8 @@ class EventConsumer:
     
     async def _handle_order_event(self, event_type: str, data: dict):
         """Handle order-related events."""
+        logger.info(f"Handling order event: {event_type} with data: {data}")
+        
         order_id = data.get("order_id")
         order_number = data.get("order_number", "")
         user_id = data.get("user_id")
@@ -130,14 +132,14 @@ class EventConsumer:
         # Fetch user details
         user = await self._get_user(user_id)
         if not user:
-            logger.warning(f"Could not fetch user {user_id} for order event")
+            logger.warning(f"Could not fetch user {user_id} for order event {event_type}")
             return
         
         email = user.get("email")
         name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or "Customer"
         
         if event_type == "order.created":
-            await self.email_service.send_order_notification(
+            res = await self.email_service.send_order_notification(
                 order_id=order_id,
                 order_number=order_number,
                 customer_email=email,
@@ -145,10 +147,13 @@ class EventConsumer:
                 notification_type=NotificationType.ORDER_CONFIRMATION,
                 order_data={"total": data.get("total", "0")},
             )
-            logger.info(f"Sent order confirmation email for order {order_number}")
+            if res.success:
+                logger.info(f"Successfully sent order confirmation email for order {order_number} to {email}")
+            else:
+                logger.error(f"Failed to send order confirmation email for order {order_number}: {res.message}")
             
         elif event_type == "order.shipped":
-            await self.email_service.send_order_notification(
+            res = await self.email_service.send_order_notification(
                 order_id=order_id,
                 order_number=order_number,
                 customer_email=email,
@@ -159,14 +164,17 @@ class EventConsumer:
                     "carrier": data.get("carrier", ""),
                 },
             )
-            logger.info(f"Sent shipping notification for order {order_number}")
+            if res.success:
+                logger.info(f"Successfully sent shipping notification for order {order_number} to {email}")
+            else:
+                logger.error(f"Failed to send shipping notification for order {order_number}: {res.message}")
             
         elif event_type == "order.confirmed":
             # Payment successful - could send a separate confirmation
             logger.info(f"Order {order_number} confirmed (payment successful)")
             
         elif event_type == "order.cancelled":
-            await self.email_service.send_email(
+            res = await self.email_service.send_email(
                 to_email=email,
                 to_name=name,
                 subject=f"Order Cancelled - #{order_number}",
@@ -177,7 +185,10 @@ class EventConsumer:
                     <p>Reason: {data.get('reason', 'Customer requested cancellation')}</p>
                 """,
             )
-            logger.info(f"Sent cancellation email for order {order_number}")
+            if res.success:
+                logger.info(f"Successfully sent cancellation email for order {order_number} to {email}")
+            else:
+                logger.error(f"Failed to send cancellation email for order {order_number}: {res.message}")
     
     async def _handle_user_event(self, event_type: str, data: dict):
         """Handle user-related events."""

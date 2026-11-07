@@ -191,11 +191,11 @@ async def list_users(
 @router.get("/{user_id}", response_model=ResponseModel[UserResponse])
 async def get_user(
     user_id: int,
-    current_user: TokenData = Depends(require_admin),
+    # current_user: TokenData = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get user by ID (admin only).
+    Get user by ID (admin only). REmove for now
     """
     user_service = UserService(db)
     user = await user_service.get_by_id(user_id)

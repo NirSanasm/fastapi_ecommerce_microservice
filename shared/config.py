@@ -3,6 +3,7 @@ Base configuration management for all microservices.
 Uses pydantic-settings for environment variable loading.
 """
 
+from typing import Optional
 from functools import lru_cache
 from pydantic_settings import BaseSettings as PydanticBaseSettings
 from pydantic import Field
@@ -39,9 +40,13 @@ class BaseSettings(PydanticBaseSettings):
     rabbitmq_user: str = Field(default="ecommerce", alias="RABBITMQ_USER", description="RabbitMQ username")
     rabbitmq_password: str = Field(default="ecommerce_secret", alias="RABBITMQ_PASSWORD", description="RabbitMQ password")
     
+    rabbitmq_url_override: Optional[str] = Field(default=None, alias="RABBITMQ_URL", description="Full RabbitMQ connection URL override")
+    
     @property
     def rabbitmq_url(self) -> str:
         """Get RabbitMQ connection URL."""
+        if self.rabbitmq_url_override:
+            return self.rabbitmq_url_override
         return f"amqp://{self.rabbitmq_user}:{self.rabbitmq_password}@{self.rabbitmq_host}:{self.rabbitmq_port}/"
     
     class Config:

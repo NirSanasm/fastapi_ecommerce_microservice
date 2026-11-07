@@ -4,9 +4,17 @@ Sends email and SMS notifications for various events.
 """
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logging.getLogger("app").setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.routers import notifications
@@ -15,16 +23,20 @@ from app.events import event_consumer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"Starting {settings.app_name}...")
+    logger.info(f"Starting {settings.app_name}...")
     
     # Start RabbitMQ consumer as background task
     consumer_task = asyncio.create_task(event_consumer.start())
-    print("RabbitMQ event consumer started")
+    def _task_done_callback(t: asyncio.Task):
+        if not t.cancelled() and t.exception():
+            logger.error(f"Event consumer crashed with exception: {t.exception()}", exc_info=t.exception())
+    consumer_task.add_done_callback(_task_done_callback)
+    logger.info("RabbitMQ event consumer started")
     
     yield
     
     # Shutdown
-    print(f"Shutting down {settings.app_name}...")
+    logger.info(f"Shutting down {settings.app_name}...")
     await event_consumer.stop()
     consumer_task.cancel()
     try:

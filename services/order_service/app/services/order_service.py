@@ -190,15 +190,15 @@ class OrderService:
         )
         
         # Send order confirmation notification
-        await self._send_notification(
-            user_id=user_id,
-            notification_type="order_confirmation",
-            data={
-                "order_id": order.id,
-                "order_number": order.order_number,
-                "total": str(order.total),
-            }
-        )
+        # await self._send_notification(
+        #     user_id=user_id,
+        #     notification_type="order_confirmation",
+        #     data={
+        #         "order_id": order.id,
+        #         "order_number": order.order_number,
+        #         "total": str(order.total),
+        #     }
+        # )
         
         return order
     
