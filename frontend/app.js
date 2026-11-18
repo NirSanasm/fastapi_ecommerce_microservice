@@ -18,6 +18,17 @@ const API = {
 const api = {
     getToken() { return localStorage.getItem('access_token'); },
     getRefresh() { return localStorage.getItem('refresh_token'); },
+    getGuestId(createIfMissing = true) {
+        let gid = localStorage.getItem('guest_cart_id');
+        if (!gid && createIfMissing) {
+            gid = 'guest_' + Math.random().toString(36).substring(2, 10);
+            localStorage.setItem('guest_cart_id', gid);
+        }
+        return gid;
+    },
+    clearGuestId() {
+        localStorage.removeItem('guest_cart_id');
+    },
     setTokens(access, refresh) {
         localStorage.setItem('access_token', access);
         if (refresh) localStorage.setItem('refresh_token', refresh);
@@ -26,6 +37,7 @@ const api = {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
+        localStorage.removeItem('guest_cart_id');
     },
     getUser() {
         try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
@@ -35,10 +47,21 @@ const api = {
     async request(url, opts = {}) {
         const headers = { 'Content-Type': 'application/json', ...opts.headers };
         const token = this.getToken();
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        } else {
+            const guestId = this.getGuestId(true);
+            if (guestId) {
+                headers['X-Guest-ID'] = guestId;
+            }
+        }
 
         try {
             let res = await fetch(url, { ...opts, headers });
+            const serverGuestId = res.headers.get('X-Guest-ID');
+            if (serverGuestId && !this.getToken()) {
+                localStorage.setItem('guest_cart_id', serverGuestId);
+            }
 
             // Token refresh on 401
             if (res.status === 401 && this.getRefresh()) {
@@ -774,7 +797,18 @@ function initLogin() {
                 email: form.email.value,
                 password: form.password.value,
             });
+            const guestCartId = api.getGuestId(false);
             api.setTokens(res.access_token, res.refresh_token);
+
+            // Merge guest cart if items existed
+            if (guestCartId) {
+                try {
+                    await api.post(`${API.cart}/merge`, { guest_cart_id: guestCartId });
+                    api.clearGuestId();
+                } catch (mergeErr) {
+                    console.warn('Cart merge notification:', mergeErr);
+                }
+            }
 
             // Fetch user profile
             try {

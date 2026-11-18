@@ -37,6 +37,7 @@ class CartResponse(BaseModel):
     user_id: str
     items: List[CartItemResponse]
     item_count: int
+    total_items: Optional[int] = None
     subtotal: Decimal
     updated_at: Optional[datetime] = None
     

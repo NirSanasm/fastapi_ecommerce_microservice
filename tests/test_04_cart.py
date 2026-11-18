@@ -87,3 +87,52 @@ async def test_validate_cart_checkout(authenticated_session: dict, available_pro
     assert res_data.get("success") is True
     validation_details = res_data.get("data", {})
     assert validation_details.get("is_valid") is True
+
+
+@pytest.mark.asyncio
+async def test_guest_cart_and_merge_flow(client: httpx.AsyncClient, authenticated_session: dict, available_product: dict):
+    """Verify guest cart operations and merging guest cart into authenticated user cart upon login."""
+    auth_headers = authenticated_session["headers"]
+    product_id = available_product["id"]
+    guest_id = "guest_test_merge_99"
+    guest_headers = {"X-Guest-ID": guest_id}
+
+    # 1. Clean both guest and auth carts
+    await client.delete("/api/v1/cart/", headers=guest_headers)
+    await client.delete("/api/v1/cart/", headers=auth_headers)
+
+    # 2. Add product as guest
+    guest_add_resp = await client.post(
+        "/api/v1/cart/items",
+        json={"product_id": product_id, "quantity": 2},
+        headers=guest_headers,
+    )
+    assert guest_add_resp.status_code == 200
+    guest_cart = guest_add_resp.json().get("data", {})
+    assert len(guest_cart.get("items", [])) == 1
+    assert guest_cart["items"][0]["quantity"] == 2
+
+    # 3. Add 1 item to user cart prior to merge
+    await client.post(
+        "/api/v1/cart/items",
+        json={"product_id": product_id, "quantity": 1},
+        headers=auth_headers,
+    )
+
+    # 4. Merge guest cart into authenticated cart
+    merge_resp = await client.post(
+        "/api/v1/cart/merge",
+        json={"guest_cart_id": guest_id},
+        headers=auth_headers,
+    )
+    assert merge_resp.status_code == 200
+    merged_data = merge_resp.json().get("data", {})
+    merged_items = merged_data.get("items", [])
+    assert len(merged_items) == 1
+    # 2 from guest + 1 from user = 3
+    assert merged_items[0]["quantity"] == 3
+
+    # 5. Verify guest cart is cleared in Redis
+    guest_check = await client.get("/api/v1/cart/", headers=guest_headers)
+    assert guest_check.status_code == 200
+    assert len(guest_check.json().get("data", {}).get("items", [])) == 0
