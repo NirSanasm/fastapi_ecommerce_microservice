@@ -104,31 +104,55 @@ class RabbitMQClient:
             routing_key=routing_key,
         )
     
+    DEFAULT_DLX_EXCHANGE = "dlx_events"
+
     async def subscribe(
         self,
         exchange_name: str,
         routing_key: str,
         queue_name: str,
         handler: Callable[[EventMessage], Any],
+        enable_dlq: bool = True,
+        dlx_exchange_name: str = "dlx_events",
+        dlq_name: Optional[str] = None,
     ) -> None:
         """
-        Subscribe to messages from an exchange.
+        Subscribe to messages from an exchange with DLQ support.
         
         Args:
             exchange_name: Name of the exchange
             routing_key: Routing key pattern (can use wildcards)
             queue_name: Name of the queue to create
             handler: Async function to handle messages
+            enable_dlq: Whether to configure dead letter exchange for failed messages
+            dlx_exchange_name: Name of the dead letter exchange (topic)
+            dlq_name: Optional custom DLQ name (defaults to {queue_name}.dlq)
         """
         if not self.channel:
             raise RuntimeError("Not connected to RabbitMQ")
         
         exchange = await self._get_exchange(exchange_name)
         
-        # Declare queue
+        queue_args = {}
+        actual_dlq_name = dlq_name or f"{queue_name}.dlq"
+        if enable_dlq:
+            # Declare Dead Letter Exchange (DLX) and DLQ
+            dlx = await self._get_exchange(dlx_exchange_name)
+            dlq = await self.channel.declare_queue(
+                actual_dlq_name,
+                durable=True,
+            )
+            dead_routing_key = f"{queue_name}.dead"
+            await dlq.bind(dlx, routing_key=dead_routing_key)
+            
+            queue_args["x-dead-letter-exchange"] = dlx_exchange_name
+            queue_args["x-dead-letter-routing-key"] = dead_routing_key
+        
+        # Declare queue with DLX arguments if enabled
         queue = await self.channel.declare_queue(
             queue_name,
             durable=True,
+            arguments=queue_args or None,
         )
         
         # Bind queue to exchange
@@ -137,8 +161,8 @@ class RabbitMQClient:
         # Start consuming
         async with queue.iterator() as queue_iter:
             async for message in queue_iter:
-                async with message.process():
-                    try:
+                try:
+                    async with message.process(requeue=False):
                         body = json.loads(message.body.decode())
                         event = EventMessage(
                             event_type=body.get("event_type", "unknown"),
@@ -148,9 +172,11 @@ class RabbitMQClient:
                             correlation_id=message.correlation_id,
                         )
                         await handler(event)
-                    except Exception as e:
-                        # TODO: Implement dead letter queue for failed messages
-                        print(f"Error processing message: {e}")
+                except Exception as e:
+                    # When an exception is raised, message.process(requeue=False)
+                    # nacks/rejects the message without requeue, causing RabbitMQ to route it to DLQ.
+                    dlq_info = f" -> DLQ: {actual_dlq_name}" if enable_dlq else ""
+                    print(f"Error processing message in {queue_name}: {e}{dlq_info}")
 
 
 # Event types for the platform

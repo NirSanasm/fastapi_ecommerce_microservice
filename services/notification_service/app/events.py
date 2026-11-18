@@ -33,6 +33,9 @@ class EventConsumer:
     
     EXCHANGES = ["order_events", "user_events", "product_events", "payment_events"]
     QUEUE_NAME = "notification_queue"
+    DLX_EXCHANGE = "dlx_events"
+    DLQ_NAME = "notification_queue.dlq"
+    DEAD_ROUTING_KEY = "notification_queue.dead"
     
     def __init__(self):
         self.rabbitmq_url = settings.rabbitmq_url
@@ -49,10 +52,26 @@ class EventConsumer:
             self._channel = await self._connection.channel()
             await self._channel.set_qos(prefetch_count=10)
             
-            # Declare queue
+            # Declare Dead Letter Exchange (DLX) and Dead Letter Queue (DLQ)
+            dlx = await self._channel.declare_exchange(
+                self.DLX_EXCHANGE,
+                ExchangeType.TOPIC,
+                durable=True,
+            )
+            dlq = await self._channel.declare_queue(
+                self.DLQ_NAME,
+                durable=True,
+            )
+            await dlq.bind(dlx, routing_key=self.DEAD_ROUTING_KEY)
+
+            # Declare queue with dead-letter exchange configuration
             self._queue = await self._channel.declare_queue(
                 self.QUEUE_NAME,
                 durable=True,
+                arguments={
+                    "x-dead-letter-exchange": self.DLX_EXCHANGE,
+                    "x-dead-letter-routing-key": self.DEAD_ROUTING_KEY,
+                },
             )
             
             # Bind to all exchanges
@@ -65,7 +84,7 @@ class EventConsumer:
                 # Bind with wildcard to receive all events from each exchange
                 await self._queue.bind(exchange, routing_key="#")
             
-            logger.info("Connected to RabbitMQ and bound to all event exchanges")
+            logger.info("Connected to RabbitMQ and bound to all event exchanges (DLQ configured)")
             return True
             
         except Exception as e:
@@ -85,8 +104,14 @@ class EventConsumer:
             async for message in queue_iter:
                 if not self._running:
                     break
-                async with message.process():
-                    await self._handle_message(message)
+                try:
+                    async with message.process(requeue=False):
+                        await self._handle_message(message)
+                except Exception as e:
+                    logger.error(
+                        f"Message processing failed in {self.QUEUE_NAME}: {e}. "
+                        f"Message routed to DLQ ({self.DLQ_NAME})."
+                    )
     
     async def stop(self):
         """Stop the consumer and close connection."""
@@ -116,10 +141,12 @@ class EventConsumer:
             else:
                 logger.warning(f"Unknown event type: {event_type}")
                 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in message: {message.body}")
+            raise
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+            raise
     
     async def _handle_order_event(self, event_type: str, data: dict):
         """Handle order-related events."""

@@ -4,13 +4,22 @@ Contains common functionality used across all services.
 """
 
 from .config import BaseSettings
-from .auth import (
-    create_access_token,
-    create_refresh_token,
-    verify_token,
-    hash_password,
-    verify_password,
-)
+
+try:
+    from .auth import (
+        create_access_token,
+        create_refresh_token,
+        verify_token,
+        hash_password,
+        verify_password,
+    )
+except ImportError:
+    create_access_token = None
+    create_refresh_token = None
+    verify_token = None
+    hash_password = None
+    verify_password = None
+
 from .schemas import (
     ResponseModel,
     PaginationParams,

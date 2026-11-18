@@ -29,6 +29,9 @@ class PaymentEventConsumer:
     
     EXCHANGE_NAME = "payment_events"
     QUEUE_NAME = "order_payment_queue"
+    DLX_EXCHANGE = "dlx_events"
+    DLQ_NAME = "order_payment_queue.dlq"
+    DEAD_ROUTING_KEY = "order_payment_queue.dead"
     
     def __init__(self):
         self.rabbitmq_url = settings.rabbitmq_url
@@ -44,10 +47,26 @@ class PaymentEventConsumer:
             self._channel = await self._connection.channel()
             await self._channel.set_qos(prefetch_count=10)
             
-            # Declare queue
+            # Declare Dead Letter Exchange (DLX) and Dead Letter Queue (DLQ)
+            dlx = await self._channel.declare_exchange(
+                self.DLX_EXCHANGE,
+                ExchangeType.TOPIC,
+                durable=True,
+            )
+            dlq = await self._channel.declare_queue(
+                self.DLQ_NAME,
+                durable=True,
+            )
+            await dlq.bind(dlx, routing_key=self.DEAD_ROUTING_KEY)
+
+            # Declare queue with dead-letter exchange configuration
             self._queue = await self._channel.declare_queue(
                 self.QUEUE_NAME,
                 durable=True,
+                arguments={
+                    "x-dead-letter-exchange": self.DLX_EXCHANGE,
+                    "x-dead-letter-routing-key": self.DEAD_ROUTING_KEY,
+                },
             )
             
             # Bind to payment_events exchange
@@ -61,7 +80,7 @@ class PaymentEventConsumer:
             await self._queue.bind(exchange, routing_key="payment.completed")
             await self._queue.bind(exchange, routing_key="payment.failed")
             
-            logger.info("Connected to RabbitMQ for payment event consumption")
+            logger.info("Connected to RabbitMQ for payment event consumption (DLQ configured)")
             return True
             
         except Exception as e:
@@ -81,8 +100,14 @@ class PaymentEventConsumer:
             async for message in queue_iter:
                 if not self._running:
                     break
-                async with message.process():
-                    await self._handle_message(message)
+                try:
+                    async with message.process(requeue=False):
+                        await self._handle_message(message)
+                except Exception as e:
+                    logger.error(
+                        f"Payment event processing failed in {self.QUEUE_NAME}: {e}. "
+                        f"Message routed to DLQ ({self.DLQ_NAME})."
+                    )
     
     async def stop(self):
         """Stop the consumer and close connection."""
@@ -108,10 +133,12 @@ class PaymentEventConsumer:
                 
                 await db.commit()
                 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in message: {message.body}")
+            raise
         except Exception as e:
             logger.error(f"Error processing payment event: {e}")
+            raise
     
     async def _handle_payment_completed(self, db: AsyncSession, data: dict):
         """Handle successful payment - confirm order."""
@@ -122,7 +149,7 @@ class PaymentEventConsumer:
         
         if not order_id:
             logger.warning("Payment completed event missing order_id")
-            return
+            raise ValueError("Payment completed event missing order_id")
         
         order_service = OrderService(db)
         order = await order_service.process_payment_success(order_id, payment_id)
@@ -131,6 +158,7 @@ class PaymentEventConsumer:
             logger.info(f"Order {order.order_number} confirmed after payment")
         else:
             logger.warning(f"Order {order_id} not found for payment confirmation")
+            raise ValueError(f"Order {order_id} not found for payment confirmation")
     
     async def _handle_payment_failed(self, db: AsyncSession, data: dict):
         """Handle failed payment."""
@@ -140,7 +168,7 @@ class PaymentEventConsumer:
         
         if not order_id:
             logger.warning("Payment failed event missing order_id")
-            return
+            raise ValueError("Payment failed event missing order_id")
         
         order_service = OrderService(db)
         order = await order_service.process_payment_failure(order_id)
@@ -149,6 +177,7 @@ class PaymentEventConsumer:
             logger.info(f"Order {order.order_number} marked with payment failure")
         else:
             logger.warning(f"Order {order_id} not found for payment failure handling")
+            raise ValueError(f"Order {order_id} not found for payment failure handling")
 
 
 # Singleton instance
