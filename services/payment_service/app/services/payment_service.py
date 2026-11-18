@@ -159,6 +159,41 @@ class PaymentService:
             await self.db.flush()
             await self.db.refresh(payment)
             
+            # Publish payment.completed event
+            await event_publisher.publish_payment_completed(
+                payment_id=payment.id,
+                order_id=payment.order_id,
+                user_id=payment.user_id,
+                amount=payment.amount,
+                stripe_payment_id=payment.stripe_payment_intent_id,
+            )
+            
+            return payment
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Stripe error: {str(e)}")
+    
+    async def verify_and_confirm_payment(self, payment_id: int) -> Payment:
+        """
+        Verify payment intent status with Stripe directly and confirm payment.
+        Useful when client confirms payment via Stripe Elements or in local testing.
+        """
+        payment = await self.get_payment(payment_id)
+        if not payment:
+            raise ValueError("Payment not found")
+        
+        if not payment.stripe_payment_intent_id:
+            raise ValueError("No Stripe payment intent found")
+        
+        try:
+            intent = stripe.PaymentIntent.retrieve(payment.stripe_payment_intent_id)
+            if intent.status == "succeeded":
+                return await self.confirm_payment(payment_id, intent.id)
+            elif intent.status == "processing":
+                payment.status = PaymentStatus.PROCESSING
+                await self.db.flush()
+                return payment
+            elif intent.status in ("requires_payment_method", "canceled"):
+                return await self.fail_payment(payment_id, f"Payment status: {intent.status}")
             return payment
         except stripe.error.StripeError as e:
             raise ValueError(f"Stripe error: {str(e)}")

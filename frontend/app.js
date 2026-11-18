@@ -506,6 +506,9 @@ async function removeCartItem(productId) {
 }
 
 // ===== PAGE: CHECKOUT =====
+let stripeInstance = null;
+let cardElement = null;
+
 async function initCheckout() {
     if (!api.getToken()) {
         toast('Please login to checkout', 'error');
@@ -519,6 +522,66 @@ async function initCheckout() {
         if (formEl.first_name && user.first_name) formEl.first_name.value = user.first_name;
         if (formEl.last_name && user.last_name) formEl.last_name.value = user.last_name;
         if (formEl.phone && user.phone) formEl.phone.value = user.phone;
+    }
+
+    // Toggle card section based on payment method
+    const paymentMethodSelect = document.getElementById('checkout-payment-method');
+    const stripeCardSection = document.getElementById('stripe-card-section');
+    if (paymentMethodSelect && stripeCardSection) {
+        paymentMethodSelect.addEventListener('change', () => {
+            stripeCardSection.style.display = paymentMethodSelect.value === 'stripe' ? 'block' : 'none';
+        });
+    }
+
+    // Initialize Stripe.js and Card Element
+    try {
+        const configRes = await api.get(`${API.payments}/config`);
+        const pubKey = (configRes?.publishable_key || configRes?.data?.publishable_key || '').trim();
+        console.log('Stripe initialization:', { hasStripe: !!window.Stripe, hasKey: !!pubKey, prefix: pubKey.slice(0, 7) });
+        if (window.Stripe && pubKey && pubKey.startsWith('pk_')) {
+            stripeInstance = Stripe(pubKey);
+            const elements = stripeInstance.elements();
+            cardElement = elements.create('card', {
+                style: {
+                    base: {
+                        color: '#f8fafc',
+                        fontFamily: 'Inter, system-ui, sans-serif',
+                        fontSize: '15px',
+                        '::placeholder': {
+                            color: '#94a3b8',
+                        },
+                    },
+                    invalid: {
+                        color: '#ef4444',
+                        iconColor: '#ef4444',
+                    },
+                },
+            });
+            const cardContainer = document.getElementById('card-element');
+            if (cardContainer) {
+                cardContainer.innerHTML = '';
+                cardElement.mount('#card-element');
+                cardElement.on('change', (event) => {
+                    const errorEl = document.getElementById('card-errors');
+                    if (errorEl) {
+                        if (event.error) {
+                            errorEl.textContent = event.error.message;
+                            errorEl.style.display = 'block';
+                        } else {
+                            errorEl.textContent = '';
+                            errorEl.style.display = 'none';
+                        }
+                    }
+                });
+            }
+        } else if (stripeCardSection) {
+            const cardContainer = document.getElementById('card-element');
+            if (cardContainer) {
+                cardContainer.innerHTML = '<p style="color:var(--text-muted); font-size:0.875rem; margin:0;">Enter <code>STRIPE_PUBLISHABLE_KEY</code> in <code>.env</code> and restart <code>payment_service</code> to enable live Stripe Card input.</p>';
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to load Stripe config:', e);
     }
 
     // Load cart summary and items
@@ -593,9 +656,63 @@ async function initCheckout() {
         }
 
         try {
+            // 1. Place the order
             const res = await api.post(`${API.orders}/`, orderPayload);
             const order = res.data || res;
-            toast(`Order #${order.order_number || order.id} placed!`, 'success');
+
+            // 2. If paying with Stripe and card element is initialized
+            if (orderPayload.payment_method === 'stripe' && stripeInstance && cardElement) {
+                btn.textContent = 'Processing Payment...';
+
+                // Create PaymentIntent
+                const intentRes = await api.post(`${API.payments}/create-intent`, {
+                    order_id: Number(order.id),
+                    amount: parseFloat(order.total),
+                    currency: 'usd',
+                    payment_method: 'stripe',
+                });
+
+                const intentData = intentRes.data || intentRes;
+                const clientSecret = intentData.client_secret;
+                const paymentId = intentData.payment_id;
+
+                if (!clientSecret) {
+                    throw new Error('Could not obtain Stripe client secret');
+                }
+
+                // Confirm card payment with Stripe
+                const result = await stripeInstance.confirmCardPayment(clientSecret, {
+                    payment_method: {
+                        card: cardElement,
+                        billing_details: {
+                            name: `${shippingAddress.first_name} ${shippingAddress.last_name}`,
+                            phone: shippingAddress.phone || undefined,
+                        },
+                    },
+                });
+
+                if (result.error) {
+                    const errorEl = document.getElementById('card-errors');
+                    if (errorEl) {
+                        errorEl.textContent = result.error.message;
+                        errorEl.style.display = 'block';
+                    }
+                    throw new Error(result.error.message);
+                }
+
+                if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+                    btn.textContent = 'Confirming Order...';
+                    try {
+                        await api.post(`${API.payments}/${paymentId}/verify`);
+                    } catch (verifyErr) {
+                        console.warn('Verification completed with notification:', verifyErr);
+                    }
+                    toast(`Payment successful! Order #${order.order_number || order.id} confirmed!`, 'success');
+                }
+            } else {
+                toast(`Order #${order.order_number || order.id} placed!`, 'success');
+            }
+
             updateCartBadge(0);
             try { await api.del(`${API.cart}/`); } catch {}
             navigate('/orders');

@@ -32,6 +32,7 @@ class Settings(BaseSettings, DatabaseSettings):
     
     # Stripe
     stripe_secret_key: str = Field(default="sk_test_xxx", alias="STRIPE_SECRET_KEY")
+    stripe_publishable_key: str = Field(default="", alias="STRIPE_PUBLISHABLE_KEY")
     stripe_webhook_secret: str = Field(default="whsec_xxx", alias="STRIPE_WEBHOOK_SECRET")
     
     # Order service

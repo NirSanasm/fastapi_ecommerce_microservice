@@ -221,10 +221,15 @@
                         </div>
                         <div class="form-group" style="margin-top:1rem;">
                             <label class="form-label">Payment Method</label>
-                            <select class="form-input" name="payment_method">
+                            <select class="form-input" name="payment_method" id="checkout-payment-method">
                                 <option value="stripe" selected>Credit Card (Stripe)</option>
                                 <option value="cash_on_delivery">Cash on Delivery</option>
                             </select>
+                        </div>
+                        <div id="stripe-card-section" style="margin-top:1rem;">
+                            <label class="form-label">Card Details</label>
+                            <div id="card-element" class="form-input" style="padding: 12px 14px; min-height: 44px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: var(--radius-md);"></div>
+                            <div id="card-errors" style="color: #ef4444; font-size: 0.85rem; margin-top: 0.4rem; display: none;"></div>
                         </div>
                         <div class="form-group" style="margin-top:1rem;">
                             <label class="form-label">Order Notes (optional)</label>
@@ -327,6 +332,7 @@
         </section>
     </template>
 
-    <script src="/app.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="/app.js?v=1.1"></script>
 </body>
 </html>

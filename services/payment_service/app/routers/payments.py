@@ -92,6 +92,36 @@ async def create_payment_intent(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.get("/config")
+async def get_payment_config():
+    """Return public payment configuration (e.g. Stripe publishable key)."""
+    return {
+        "publishable_key": settings.stripe_publishable_key,
+    }
+
+
+@router.post("/{payment_id}/verify", response_model=ResponseModel[PaymentResponse])
+async def verify_payment(
+    payment_id: int,
+    current_user: TokenData = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify payment intent status with Stripe directly and confirm order.
+    Called by client after confirming card payment with Stripe.js.
+    """
+    payment_service = PaymentService(db)
+    try:
+        payment = await payment_service.verify_and_confirm_payment(payment_id)
+        return ResponseModel(
+            success=True,
+            message="Payment verified successfully",
+            data=payment,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.get("/{payment_id}", response_model=ResponseModel[PaymentResponse])
 async def get_payment(
     payment_id: int,
